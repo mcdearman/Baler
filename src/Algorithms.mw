@@ -1,0 +1,182 @@
+-- Choosing where lines end: the crate's `src/wrap_algorithms.rs` and
+-- `src/wrap_algorithms/optimal_fit.rs`, with the SMAWK search from the
+-- `smawk` crate that optimal fit rests on.
+--
+-- Both algorithms take fragments and the width of each line (the last width
+-- serving for every line after), and answer each line as the range of
+-- fragments on it, `(from, to)`, `to` exclusive.
+--
+-- Copyright (c) 2016 Martin Geisler, and the Meadow port's authors. Licensed
+-- under the MIT license: see LICENSE and COPYRIGHT.
+
+use Std.Collections.Vector as V
+use textwrap.Core (Fragment)
+use textwrap.Options (Penalties)
+
+fun lineWidthFor (lineWidths : [Float]) line =
+  let fallback = V.getOr 0.0 lineWidths (V.len lineWidths - 1) in
+  V.getOr fallback lineWidths line
+
+def noFragment = Fragment { width = 0.0, whitespaceWidth = 0.0, penaltyWidth = 0.0 }
+
+fun frag (fragments : [Fragment]) i = V.getOr noFragment fragments i
+
+-- Float addition does not associate, so the sums below are grouped as the
+-- crate groups them: `width += a + b` is `width +. (a +. b)`.
+
+-- Put as many fragments on each line as fit.
+@pub fun wrapFirstFit (fragments : [Fragment]) (lineWidths : [Float]) =
+  let n = V.len fragments in
+  let rec go idx start width lines =
+    if idx >= n
+    then V.pushBack lines (start, n)
+    else
+      let f = frag fragments idx in
+      let limit = lineWidthFor lineWidths (V.len lines) in
+      if width +. f.width +. f.penaltyWidth >. limit and idx > start
+      then go (idx + 1) idx (0.0 +. (f.width +. f.whitespaceWidth)) (V.pushBack lines (start, idx))
+      else go (idx + 1) start (width +. (f.width +. f.whitespaceWidth)) lines
+  in
+  go 0 0 0.0 V.empty
+
+-- --- SMAWK ----------------------------------------------------------------------------
+--
+-- `smawk::online_column_minima`: the least entry of each column of a totally
+-- monotone matrix, where the matrix may read the minima already found. The
+-- crate works in scratch arrays; here each step makes new vectors, and
+-- `minima` -- the row found for each column -- is threaded through.
+
+-- `(a, ra) < (b, rb)` as Rust orders tuples of a float and an index.
+fun pairLess a ra b rb = a <. b or (a == b and ra < rb)
+
+-- `smawk_inner`: fill in `minima` for `cols`, choosing from `rows`.
+fun smawkInner matrix rows cols minima =
+  let ncols = V.len cols in
+  if ncols == 0
+  then minima
+  else
+    let col = \k -> V.getOr 0 cols k in
+    -- Reduce: keep at most one row per column that can hold a minimum.
+    let stack =
+      V.foldl
+        (\st r ->
+          let rec pop st2 =
+            let len = V.len st2 in
+            if len > 0
+            and matrix (V.getOr 0 st2 (len - 1)) (col (len - 1)) >. matrix r (col (len - 1))
+            then pop (V.take st2 (len - 1))
+            else st2
+          in
+          let st3 = pop st in
+          if V.len st3 < ncols then V.pushBack st3 r else st3)
+        V.empty
+        rows
+    in
+    let odd = V.map (\k -> col (2 * k + 1)) (V.range 0 (ncols / 2)) in
+    let minima2 = smawkInner matrix stack odd minima in
+    let slen = V.len stack in
+    let row = \k -> V.getOr 0 stack k in
+    -- Interpolate: each even column's minimum lies between its neighbours'.
+    let rec even c r mins =
+      if c >= ncols
+      then mins
+      else if c % 2 != 0
+      then even (c + 1) r mins
+      else
+        let cc = col c in
+        let lastRow = if c == ncols - 1 then row (slen - 1) else V.getOr 0 mins (col (c + 1)) in
+        let rec scan r2 best bestRow =
+          if row r2 != lastRow and r2 < slen - 1
+          then
+            let r3 = r2 + 1 in
+            let v = matrix (row r3) cc in
+            if pairLess v (row r3) best bestRow then scan r3 v (row r3) else scan r3 best bestRow
+          else (r2, bestRow)
+        in
+        match scan r (matrix (row r) cc) (row r) with
+        | (r4, bestRow) -> even (c + 1) r4 (V.set mins cc bestRow)
+    in
+    even 0 0 minima2
+
+-- The online search. `matrix found i j` is the cost of a line from fragment
+-- `i` to `j`, given `found`, the minima so far as `(row, cost)`.
+fun onlineColumnMinima matrix size =
+  let rec loop finished base tentative result minima =
+    if finished >= size - 1
+    then result
+    else
+      let m = \i j -> matrix result i j in
+      let i = finished + 1 in
+      if i > tentative
+      then
+        let rows = V.range base (finished + 1) in
+        let wanted = finished + (finished + 1 - base) in
+        let tent = if wanted < size - 1 then wanted else size - 1 in
+        let cols = V.range (finished + 1) (tent + 1) in
+        let minima2 = smawkInner m rows cols minima in
+        let result2 =
+          V.foldl
+            (\res c ->
+              let r = V.getOr 0 minima2 c in
+              let v = m r c in
+              if c >= V.len res
+              then V.pushBack res (r, v)
+              else if v <. snd (V.getOr (0, 0.0) res c)
+              then V.set res c (r, v)
+              else res)
+            result
+            cols
+        in
+        loop i base tent result2 minima2
+      else
+        let diag = m (i - 1) i in
+        if diag <. snd (V.getOr (0, 0.0) result i)
+        then loop i (i - 1) i (V.set result i (i - 1, diag)) minima
+        else if m (i - 1) tentative >=. snd (V.getOr (0, 0.0) result tentative)
+        then loop i base tentative result minima
+        else loop i (i - 1) i result minima
+  in
+  loop 0 0 0 [(0, 0.0)] (V.replicate size 0)
+
+-- The line each fragment starts, by the minima found so far: the crate's
+-- `LineNumbers`, without the cache.
+fun lineNumber (found : [(Int, Float)]) i =
+  let rec go k n = if k == 0 then n else go (fst (V.getOr (0, 0.0) found k)) (n + 1) in
+  go i 0
+
+fun lastOf ws = V.getOr 0.0 ws (V.len ws - 1)
+
+-- `widths[k]` is how wide the fragments before `k` are, spaces included.
+fun extendWidths ws (f : Fragment) = V.pushBack ws (lastOf ws +. (f.width +. f.whitespaceWidth))
+
+-- Choose the breaks that make the lines cost least, by `penalties`.
+@pub fun wrapOptimalFit (fragments : [Fragment]) (lineWidths : [Float]) (penalties : Penalties) =
+  let n = V.len fragments in
+  let widths =
+    V.foldl extendWidths [0.0] fragments
+  in
+  let cost = \found i j ->
+    let target0 = lineWidthFor lineWidths (lineNumber found i) in
+    let target = if target0 >. 1.0 then target0 else 1.0 in
+    let last = frag fragments (j - 1) in
+    let span = V.getOr 0.0 widths j -. V.getOr 0.0 widths i in
+    let lineWidth = span -. last.whitespaceWidth +. last.penaltyWidth in
+    let base = snd (V.getOr (0, 0.0) found i) +. toFloat penalties.nlinePenalty in
+    let shaped =
+      if lineWidth >. target
+      then base +. (lineWidth -. target) *. toFloat penalties.overflowPenalty
+      else if j < n
+      then base +. (target -. lineWidth) *. (target -. lineWidth)
+      else if i + 1 == j and lineWidth <. target /. toFloat penalties.shortLastLineFraction
+      then base +. toFloat penalties.shortLastLinePenalty
+      else base
+    in
+    if last.penaltyWidth >. 0.0 then shaped +. toFloat penalties.hyphenPenalty else shaped
+  in
+  let minima = onlineColumnMinima cost (n + 1) in
+  let rec collect pos lines =
+    let prev = fst (V.getOr (0, 0.0) minima pos) in
+    let lines2 = V.pushFront lines (prev, pos) in
+    if prev == 0 then lines2 else collect prev lines2
+  in
+  collect n V.empty

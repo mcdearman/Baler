@@ -1,0 +1,127 @@
+-- Building blocks: display width, words, and breaking a word that is too long.
+-- The crate's `src/core.rs`.
+--
+-- Copyright (c) 2016 Martin Geisler, and the Meadow port's authors. Licensed
+-- under the MIT license: see LICENSE and COPYRIGHT.
+
+use Std.Collections.Vector as V
+use unicodeWidth (charWidth)
+use textwrap.Str (indexed, byteLength, slice, trimEndSpaces)
+
+-- Where the characters of a terminal escape sequence end, if the character
+-- at `i` of `cs` (from `indexed`) starts one; `0 - 1` if it does not.
+--
+-- `ESC [` runs to a final byte in `@`..`~`; `ESC ]` to a BEL or `ESC \`. Any
+-- other character after an `ESC` is skipped with it.
+@pub(pkg) fun skipAnsi cs i =
+  let code = \k -> charCode (snd (arrayGet cs k)) in
+  let n = arrayLen cs in
+  if code i != 0x1B
+  then 0 - 1
+  else if i + 1 >= n
+  then n
+  else
+    let next = code (i + 1) in
+    if next == 0x5B
+    then
+      let rec csi k =
+        if k >= n then n else if code k >= 0x40 and code k <= 0x7E then k + 1 else csi (k + 1)
+      in
+      csi (i + 2)
+    else if next == 0x5D
+    then
+      let rec osc k last =
+        if k >= n
+        then n
+        else
+          let c = code k in
+          if c == 7 or (c == 0x5C and last == 0x1B) then k + 1 else osc (k + 1) c
+      in
+      osc (i + 2) 0x5D
+    else i + 2
+
+-- The columns a character takes: its Unicode width, or none for a control
+-- character.
+@pub(pkg) fun charColumns c =
+  match charWidth c with
+  | Just w -> w
+  | None -> 0
+
+-- The columns `text` takes in a terminal, not counting escape sequences such as
+-- colour codes.
+@pub fun displayWidth text =
+  let cs = indexed text in
+  let rec go i w =
+    if i >= arrayLen cs
+    then w
+    else
+      let skip = skipAnsi cs i in
+      if skip >= 0 then go skip w else go (i + 1) (w + charColumns (snd (arrayGet cs i)))
+  in
+  go 0 0
+
+-- A piece of text to lay out: the word itself, the spaces after it, what to
+-- print if a line ends after it (a hyphen, say), and its width in columns.
+@pub record Word = { word : String, whitespace : String, penalty : String, width : Int }
+
+-- A word from its parts.
+@pub(pkg) fun mkWord word whitespace penalty width =
+  Word { word = word, whitespace = whitespace, penalty = penalty, width = width }
+
+-- A word from `text`, trailing spaces going to its whitespace.
+@pub fun wordFrom text =
+  let trimmed = trimEndSpaces text in
+  Word {
+    word = trimmed,
+    whitespace = slice text (byteLength trimmed) (byteLength text),
+    penalty = "",
+    width = displayWidth trimmed
+  }
+
+-- `w` in pieces no wider than `lineWidth`, where that can be done: a piece
+-- never splits a character, and holds at least one.
+@pub fun breakApart (lineWidth : Int) (w : Word) =
+  let text = w.word in
+  let cs = indexed text in
+  let piece = \from to width -> mkWord (slice text from to) "" "" width in
+  let rec go i offset width acc =
+    if i >= arrayLen cs
+    then
+      if offset < byteLength text
+      then
+        let rest = slice text offset (byteLength text) in
+        V.pushBack acc (mkWord rest w.whitespace w.penalty width)
+      else acc
+    else
+      let skip = skipAnsi cs i in
+      if skip >= 0
+      then go skip offset width acc
+      else
+        match arrayGet cs i with
+        | (at, c) ->
+            let cw = charColumns c in
+            if width > 0 and width + cw > lineWidth
+            then go (i + 1) at cw (V.pushBack acc (piece offset at width))
+            else go (i + 1) offset (width + cw) acc
+  in
+  go 0 0 0 V.empty
+
+-- `words`, with each wider than `lineWidth` broken apart.
+@pub fun breakWords (lineWidth : Int) (words : [Word]) = V.foldl (breakOne lineWidth) V.empty words
+
+fun breakOne (lineWidth : Int) acc (w : Word) =
+  if w.width > lineWidth then V.append acc (breakApart lineWidth w) else V.pushBack acc w
+
+-- What the wrapping algorithms need to know of a piece of text, in columns: its
+-- width, the width of the space after it, and of what is printed if a line
+-- ends after it.
+@pub record Fragment = { width : Float, whitespaceWidth : Float, penaltyWidth : Float }
+
+-- A word as a fragment. Whitespace is taken to be spaces, and the penalty a
+-- hyphen or nothing, so their widths are their lengths.
+@pub fun fragment (w : Word) =
+  Fragment {
+    width = toFloat w.width,
+    whitespaceWidth = toFloat (byteLength w.whitespace),
+    penaltyWidth = toFloat (byteLength w.penalty)
+  }

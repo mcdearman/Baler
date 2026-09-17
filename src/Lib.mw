@@ -1,0 +1,45 @@
+-- textwrap: wrapping, filling and indenting text for a terminal.
+--
+-- A port of Rust's `textwrap` crate, version 0.16.2, with its default
+-- features: widths from `unicodeWidth`, word boundaries from
+-- `unicodeLinebreak`, and optimal-fit wrapping. The tests hold it to the
+-- crate's answers for thousands of texts and options.
+--
+--   use textwrap (wrap, fill, options)
+--
+--   wrap (options 18) "Memory safety without garbage collection."
+--     -- ["Memory safety", "without garbage", "collection."]
+
+mod Tables
+mod Str
+mod Core
+mod Options
+mod Words
+mod Algorithms
+mod Wrap
+mod Indentation
+@cfg(test)
+mod Cases
+@cfg(test)
+mod Tests
+
+@pub use textwrap.Options (
+  Options,
+  options,
+  LineEnding,
+  lineEndingText,
+  WordSeparator,
+  WordSplitter,
+  WrapAlgorithm,
+  Penalties,
+  defaultPenalties
+)
+@pub use textwrap.Options.LineEnding.*
+@pub use textwrap.Options.WordSeparator.*
+@pub use textwrap.Options.WordSplitter.*
+@pub use textwrap.Options.WrapAlgorithm.*
+@pub use textwrap.Wrap (wrap, fill, fillInplace, unfill, refill, wrapColumns)
+@pub use textwrap.Indentation (indent, dedent)
+@pub use textwrap.Core (displayWidth, Word, wordFrom, breakApart, breakWords, Fragment, fragment)
+@pub use textwrap.Words (findWords, splitPoints, splitWords)
+@pub use textwrap.Algorithms (wrapFirstFit, wrapOptimalFit)

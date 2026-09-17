@@ -1,0 +1,102 @@
+-- How to wrap: the crate's `Options`, and the choices it holds.
+--
+-- Copyright (c) 2016 Martin Geisler, and the Meadow port's authors. Licensed
+-- under the MIT license: see LICENSE and COPYRIGHT.
+
+use textwrap.Core (Word)
+
+-- Which line ending to split input at and join output with.
+@pub data LineEnding = LF | CRLF
+
+@pub fun lineEndingText e =
+  match e with
+  | LF -> "\n"
+  | CRLF -> "\r\n"
+
+use LineEnding.*
+
+-- How to find the words in a line.
+@pub data WordSeparator =
+  -- Words end at ASCII spaces, and only there.
+  AsciiSpace
+  -- Words end where UAX #14 allows a line to break: after spaces, and between
+  -- ideographs, say. Breaks at a hyphen are left to the `WordSplitter`.
+  | UnicodeBreakProperties
+  -- Words are what this function says they are. They must cover the line, in
+  -- order.
+  | CustomSeparator (String -> [Word])
+
+-- How to find places inside a word where it may be split across lines.
+@pub data WordSplitter =
+  -- Nowhere.
+  NoHyphenation
+  -- After a hyphen with letters or digits on both sides.
+  | HyphenSplitter
+  -- At the byte offsets this function gives.
+  | CustomSplitter (String -> [Int])
+
+use WordSeparator.*
+use WordSplitter.*
+
+-- The costs the optimal-fit algorithm weighs, in the crate's units.
+@pub record Penalties = {
+  -- Added for every line.
+  nlinePenalty : Int,
+  -- Per column a line runs over its width.
+  overflowPenalty : Int,
+  -- A last line holding one short word, shorter than the width divided by
+  -- this, costs `shortLastLinePenalty`.
+  shortLastLineFraction : Int,
+  shortLastLinePenalty : Int,
+  -- Added for a line that ends in a hyphen the splitter put there.
+  hyphenPenalty : Int
+}
+
+@pub def defaultPenalties =
+  Penalties {
+    nlinePenalty = 1000,
+    overflowPenalty = 50 * 50,
+    shortLastLineFraction = 4,
+    shortLastLinePenalty = 25,
+    hyphenPenalty = 25
+  }
+
+-- How to choose where lines end.
+@pub data WrapAlgorithm =
+  -- Fill each line as far as it will go.
+  FirstFit
+  -- Choose the breaks that balance the lines best, by the penalties given.
+  | OptimalFit Penalties
+
+use WrapAlgorithm.*
+
+@pub record Options = {
+  -- The widest a line may be, in columns, indents included.
+  width : Int,
+  lineEnding : LineEnding,
+  -- Put before the first line.
+  initialIndent : String,
+  -- Put before every other line.
+  subsequentIndent : String,
+  -- Whether a word wider than a line is broken up, rather than left to run
+  -- over.
+  breakWords : Bool,
+  wrapAlgorithm : WrapAlgorithm,
+  wordSeparator : WordSeparator,
+  wordSplitter : WordSplitter
+}
+
+-- The crate's defaults, for lines `width` columns wide: `LF`, no indents,
+-- long words broken, optimal fit, Unicode word separation and hyphen
+-- splitting. Change a field with `{ options 40 | breakWords = False }`.
+@pub fun options width =
+  Options {
+    width = width,
+    lineEnding = LF,
+    initialIndent = "",
+    subsequentIndent = "",
+    breakWords = True,
+    wrapAlgorithm = OptimalFit defaultPenalties,
+    wordSeparator = UnicodeBreakProperties,
+    wordSplitter = HyphenSplitter
+  }

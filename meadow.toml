@@ -1,0 +1,7 @@
+[package]
+name = "textwrap"
+version = "0.1.0"
+
+[dependencies]
+unicodeWidth = { path = "../meadow-unicode-width" }
+unicodeLinebreak = { path = "../meadow-unicode-linebreak" }

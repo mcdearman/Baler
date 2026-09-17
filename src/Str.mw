@@ -1,0 +1,173 @@
+-- The pieces of Rust's `str` that textwrap leans on, with Rust's meaning:
+-- `char::is_whitespace`, `char::is_alphanumeric`, `trim`, `lines`, `split`
+-- and friends. Offsets are in bytes.
+--
+-- Copyright (c) 2016 Martin Geisler, and the Meadow port's authors. Licensed
+-- under the MIT license: see LICENSE and COPYRIGHT.
+
+use Std.Collections.Vector as V
+use textwrap.Tables (alphanumeric)
+
+fun digit s i = toInt (stringByteAt s i) - 48
+
+fun pair s i = digit s i * 64 + digit s (i + 1)
+
+fun codePoint s i = pair s i * 4096 + pair s (i + 2)
+
+fun inRanges table cp lo hi =
+  if lo >= hi
+  then False
+  else
+    let mid = (lo + hi) / 2 in
+    let at = mid * 8 in
+    if cp < codePoint table at
+    then inRanges table cp lo mid
+    else if cp > codePoint table (at + 4)
+    then inRanges table cp (mid + 1) hi
+    else True
+
+-- Rust's `char::is_alphanumeric`.
+@pub(pkg) fun isAlphanumeric c =
+  let cp = charCode c in
+  if cp < 128
+  then (cp >= 48 and cp <= 57) or (cp >= 65 and cp <= 90) or (cp >= 97 and cp <= 122)
+  else inRanges alphanumeric cp 0 (stringByteLength alphanumeric / 8)
+
+-- Rust's `char::is_whitespace`: the White_Space property.
+@pub(pkg) fun isWhitespace c =
+  let cp = charCode c in
+  (cp >= 9 and cp <= 13)
+    or cp == 32
+    or cp == 0x85
+    or cp == 0xA0
+    or cp == 0x1680
+    or (cp >= 0x2000 and cp <= 0x200A)
+    or cp == 0x2028
+    or cp == 0x2029
+    or cp == 0x202F
+    or cp == 0x205F
+    or cp == 0x3000
+
+-- How many bytes UTF-8 takes for `c`.
+@pub(pkg) fun utf8Len c =
+  let cp = charCode c in
+  if cp < 0x80
+  then 1
+  else if cp < 0x800
+  then 2
+  else if cp < 0x10000
+  then 3
+  else 4
+
+@pub(pkg) fun byteLength s = stringByteLength s
+
+@pub(pkg) fun slice s from to = stringSlice s from to
+
+@pub(pkg) fun drop s n = stringSlice s n (stringByteLength s)
+
+@pub(pkg) fun isEmpty s = stringByteLength s == 0
+
+-- The byte at `i`, as an `Int`.
+@pub(pkg) fun byteAt s i = toInt (stringByteAt s i)
+
+-- The characters of `s`, each with the byte offset it starts at.
+@pub(pkg) fun indexed s =
+  let cs = stringToChars s in
+  let rec go i at acc =
+    if i >= arrayLen cs
+    then acc
+    else
+      let c = arrayGet cs i in
+      go (i + 1) (at + utf8Len c) (V.pushBack acc (at, c))
+  in
+  V.toArray (go 0 0 V.empty)
+
+-- Whether `s` has `needle` at byte `at`.
+@pub(pkg) fun hasAt needle s at =
+  let n = stringByteLength needle in
+  at >= 0 and at + n <= stringByteLength s and stringSlice s at (at + n) == needle
+
+@pub(pkg) fun startsWith prefix s = hasAt prefix s 0
+
+@pub(pkg) fun endsWith suffix s = hasAt suffix s (stringByteLength s - stringByteLength suffix)
+
+-- The first `needle` at or after byte `from`, or `0 - 1`.
+@pub(pkg) fun find needle s from = stringIndexOf s needle from
+
+@pub(pkg) fun contains needle s = find needle s 0 >= 0
+
+-- Rust's `str::split`: the pieces between each `sep`, an empty one included
+-- wherever two meet or at either end.
+@pub(pkg) fun split sep s =
+  let n = stringByteLength sep in
+  let rec go from acc =
+    let at = find sep s from in
+    if at < 0
+    then V.pushBack acc (drop s from)
+    else go (at + n) (V.pushBack acc (slice s from at))
+  in
+  go 0 V.empty
+
+-- Rust's `str::split_terminator`: `split`, without the empty piece after a
+-- final separator.
+@pub(pkg) fun splitTerminator sep s =
+  let pieces = split sep s in
+  if V.len pieces > 0 and V.getOr "x" pieces (V.len pieces - 1) == ""
+  then V.take pieces (V.len pieces - 1)
+  else pieces
+
+-- Rust's `str::lines`: split at `\n`, with a `\r` just before one taken off,
+-- and no empty line after a final `\n`.
+@pub(pkg) fun lines s =
+  let pieces = splitTerminator "\n" s in
+  let last = V.len pieces - 1 in
+  let ended = endsWith "\n" s in
+  V.map
+    (\k ->
+      let line = V.getOr "" pieces k in
+      if (k < last or ended) and endsWith "\r" line
+      then slice line 0 (stringByteLength line - 1)
+      else line)
+    (V.range 0 (V.len pieces))
+
+-- `s` without the characters from its end that `drop` says to.
+@pub(pkg) fun trimEndBy dropIt s =
+  let cs = indexed s in
+  let rec go i =
+    if i < 0
+    then 0
+    else
+      match arrayGet cs i with
+      | (at, c) -> if dropIt c then go (i - 1) else at + utf8Len c
+  in
+  slice s 0 (go (arrayLen cs - 1))
+
+-- `s` without the characters from its start that `drop` says to.
+@pub(pkg) fun trimStartBy dropIt s =
+  let cs = indexed s in
+  let rec go i =
+    if i >= arrayLen cs
+    then stringByteLength s
+    else
+      match arrayGet cs i with
+      | (at, c) -> if dropIt c then go (i + 1) else at
+  in
+  drop s (go 0)
+
+-- Rust's `trim_end_matches(' ')`, bytewise since a space is one byte.
+@pub(pkg) fun trimEndSpaces s =
+  let rec go i = if i > 0 and byteAt s (i - 1) == 32 then go (i - 1) else i in
+  slice s 0 (go (stringByteLength s))
+
+@pub(pkg) fun trimEnd s = trimEndBy isWhitespace s
+
+@pub(pkg) fun trim s = trimStartBy isWhitespace (trimEnd s)
+
+@pub(pkg) fun anyChar keep s = V.any (\p -> keep (snd p)) (V.fromArray (indexed s))
+
+@pub(pkg) fun spaces n = if n <= 0 then "" else concatStrings (V.toArray (V.replicate n " "))
+
+-- `xs` joined with `sep` between each.
+@pub(pkg) fun joinWith sep xs =
+  let add = \acc x -> if V.isEmpty acc then [x] else V.pushBack (V.pushBack acc sep) x in
+  concatStrings (V.toArray (V.foldl add V.empty xs))

@@ -1,0 +1,183 @@
+-- The port against the crate: every case in `Cases.mw`, whose expected
+-- results came from calling textwrap itself, plus a few examples.
+--
+-- Every declaration carries `@cfg(test)`, as the tests are no part of the
+-- package.
+
+@cfg(test)
+use Std.Test (assertEq)
+@cfg(test)
+use Std.Collections.Vector as V
+@cfg(test)
+use textwrap.Cases (cases)
+@cfg(test)
+use textwrap.Options
+@cfg(test)
+use textwrap.Options.LineEnding.*
+@cfg(test)
+use textwrap.Options.WordSeparator.*
+@cfg(test)
+use textwrap.Options.WordSplitter.*
+@cfg(test)
+use textwrap.Options.WrapAlgorithm.*
+@cfg(test)
+use textwrap.Wrap
+@cfg(test)
+use textwrap.Indentation
+@cfg(test)
+use textwrap.Core (displayWidth)
+
+@cfg(test)
+fun digit i = toInt (stringByteAt cases i) - 48
+
+-- An `n`-digit number at `i`, and where it ends.
+@cfg(test)
+fun num i n =
+  let rec go k acc = if k >= n then acc else go (k + 1) (acc * 64 + digit (i + k)) in
+  (go 0 0, i + n)
+
+-- A string at `i`, and where it ends.
+@cfg(test)
+fun str i =
+  let len = fst (num i 3) in
+  (stringSlice cases (i + 3) (i + 3 + len), i + 3 + len)
+
+@cfg(test)
+fun strs i =
+  let count = fst (num i 3) in
+  let rec go k at acc =
+    if k >= count
+    then (acc, at)
+    else
+      let s = str at in
+      go (k + 1) (snd s) (V.pushBack acc (fst s))
+  in
+  go 0 (i + 3) V.empty
+
+@cfg(test)
+def otherPenalties =
+  Penalties {
+    nlinePenalty = 500,
+    overflowPenalty = 100,
+    shortLastLineFraction = 3,
+    shortLastLinePenalty = 10,
+    hyphenPenalty = 50
+  }
+
+-- A setting at `i`, as options, and where it ends.
+@cfg(test)
+fun setting i =
+  let width = num i 2 in
+  let crlf = num (snd width) 1 in
+  let initial = str (snd crlf) in
+  let subsequent = str (snd initial) in
+  let flags = snd subsequent in
+  let flag k = fst (num (flags + k) 1) in
+  let algorithm =
+    if flag 1 == 0
+    then FirstFit
+    else if flag 1 == 1
+    then OptimalFit defaultPenalties
+    else OptimalFit otherPenalties
+  in
+  let base = options (fst width) in
+  let opts = {
+  base |
+    lineEnding = if fst crlf == 1 then CRLF else LF,
+    initialIndent = fst initial,
+    subsequentIndent = fst subsequent,
+    breakWords = flag 0 == 1,
+    wrapAlgorithm = algorithm,
+    wordSeparator = if flag 2 == 1 then UnicodeBreakProperties else AsciiSpace,
+    wordSplitter = if flag 3 == 1 then HyphenSplitter else NoHyphenation
+  } in
+  (opts, flags + 4)
+
+-- One case at `i`: `(input, expected, actual)` and where it ends.
+@cfg(test)
+fun runCase i =
+  let kind = fst (num i 1) in
+  let t = str (i + 1) in
+  let text = fst t in
+  let at = snd t in
+  if kind == 0
+  then
+    let s = setting at in
+    let wrapped = strs (snd s) in
+    let filled = str (snd wrapped) in
+    let opts = fst s in
+    (("wrap/fill", text), (fst wrapped, fst filled), (wrap opts text, fill opts text), snd filled)
+  else if kind == 1
+  then
+    let w = num at 2 in
+    let filled = str (snd w) in
+    (("fillInplace", text), ([], fst filled), ([], fillInplace (fst w) text), snd filled)
+  else if kind == 2
+  then
+    let prefix = str at in
+    let result = str (snd prefix) in
+    (("indent " ++ fst prefix, text), ([], fst result), ([], indent (fst prefix) text), snd result)
+  else if kind == 3
+  then
+    let result = str at in
+    (("dedent", text), ([], fst result), ([], dedent text), snd result)
+  else if kind == 4
+  then
+    let unfilled = str at in
+    let w = num (snd unfilled) 3 in
+    let ini = num (snd w) 2 in
+    let sub = num (snd ini) 2 in
+    let crlf = num (snd sub) 1 in
+    let expected = [fst unfilled, "${fst w} ${fst ini} ${fst sub} ${fst crlf}"] in
+    let got = unfill text in
+    let (o : Options) = snd got in
+    let crlfFound = if o.lineEnding == CRLF then 1 else 0 in
+    let indents = "${stringByteLength o.initialIndent} ${stringByteLength o.subsequentIndent}" in
+    let summary = "${o.width} ${indents} ${crlfFound}" in
+    (("unfill", text), (expected, ""), ([fst got, summary], ""), snd crlf)
+  else if kind == 5
+  then
+    let s = setting at in
+    let refilled = str (snd s) in
+    (("refill", text), ([], fst refilled), ([], refill (fst s) text), snd refilled)
+  else if kind == 6
+  then
+    let s = setting at in
+    let cols = num (snd s) 1 in
+    let left = str (snd cols) in
+    let middle = str (snd left) in
+    let right = str (snd middle) in
+    let result = strs (snd right) in
+    let got = wrapColumns (fst cols) (fst s) (fst left) (fst middle) (fst right) text in
+    (("wrapColumns", text), (fst result, ""), (got, ""), snd result)
+  else
+    let w = num at 3 in
+    (("displayWidth", text), ([], "${fst w}"), ([], "${displayWidth text}"), snd w)
+
+@cfg(test)
+fun check i bad =
+  if i >= stringByteLength cases
+  then bad
+  else
+    match runCase i with
+    | (input, expected, got, next) ->
+        check next (if expected == got then bad else V.pushBack bad (input, expected, got))
+
+-- Failures list ((function, text), expected, actual).
+@cfg(test)
+@test fun resultsMatchTheCrate () =
+  assertEq (V.take (check 0 V.empty) 3) [] "cases where the port and textwrap differ"
+
+@cfg(test)
+@test fun examples () =
+  let text = "Memory safety without garbage collection." in
+  let lines = ["Memory safety", "without garbage", "collection."] in
+  let a = assertEq (wrap (options 18) text) lines "wrap" in
+  let b = assertEq (fill (options 18) text) "Memory safety\nwithout garbage\ncollection." "fill" in
+  let c = assertEq (indent "  " "foo\nbar\n") "  foo\n  bar\n" "indent" in
+  let d = assertEq (dedent "    foo\n      bar\n") "foo\n  bar\n" "dedent" in
+  let first = { options 18 | wrapAlgorithm = FirstFit } in
+  let hamlet = "To be, or not to be, that is the question." in
+  let greedy = ["To be, or not to", "be, that is the", "question."] in
+  let e = assertEq (wrap first hamlet) greedy "first fit" in
+  assertEq (displayWidth "\u{1b}[31mred\u{1b}[0m 日本") 8 "display width"

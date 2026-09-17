@@ -1,0 +1,63 @@
+-- Adding and removing indentation: the crate's `src/indentation.rs`.
+--
+-- Copyright (c) 2016 Martin Geisler, and the Meadow port's authors. Licensed
+-- under the MIT license: see LICENSE and COPYRIGHT.
+
+use Std.Collections.Vector as V
+use textwrap.Str
+
+-- `s` with `prefix` put before each line. A line that is only whitespace
+-- gets the prefix without its trailing whitespace, so that no line ends in
+-- spaces it did not have.
+@pub fun indent prefix s =
+  let trimmedPrefix = trimEnd prefix in
+  let prefixed = \line -> (if isEmpty (trim line) then trimmedPrefix else prefix) ++ line in
+  let body = joinWith "\n" (V.map prefixed (splitTerminator "\n" s)) in
+  if endsWith "\n" s then body ++ "\n" else body
+
+-- The whitespace `line` starts with, if it has anything else.
+fun leading line =
+  let rest = trimStartBy isWhitespace line in
+  if isEmpty rest then None else Just (slice line 0 (byteLength line - byteLength rest))
+
+-- How much of `prefix` agrees with the start of `line`, if that is less than
+-- all of it and `line` goes on past the disagreement.
+fun shorten prefix line =
+  let a = indexed line in
+  let b = indexed prefix in
+  let rec go i =
+    if i >= arrayLen a or i >= arrayLen b
+    then byteLength line
+    else if snd (arrayGet a i) != snd (arrayGet b i)
+    then fst (arrayGet a i)
+    else go (i + 1)
+  in
+  let at = go 0 in
+  if at < byteLength line and at < byteLength prefix then slice line 0 at else prefix
+
+fun hasText line = anyChar (\c -> not (isWhitespace c)) line
+
+-- `s` with the whitespace that all its lines start with taken off. Lines of
+-- nothing but whitespace become empty.
+@pub fun dedent s =
+  let ls = lines s in
+  let rec findFirst k =
+    if k >= V.len ls
+    then (k, "")
+    else
+      match leading (V.getOr "" ls k) with
+      | Just p -> (k + 1, p)
+      | None -> findFirst (k + 1)
+  in
+  let prefix =
+    match findFirst 0 with
+    | (from, first) -> V.foldl (\p k -> shorten p (V.getOr "" ls k)) first (V.range from (V.len ls))
+  in
+  let dropPrefix = \line -> drop line (byteLength prefix) in
+  let out =
+    V.map
+      (\line -> if startsWith prefix line and hasText line then dropPrefix line else "")
+      ls
+  in
+  let body = concatStrings (V.toArray (V.map (\l -> l ++ "\n") out)) in
+  if endsWith "\n" body and not (endsWith "\n" s) then slice body 0 (byteLength body - 1) else body

@@ -1,0 +1,14 @@
+textwrap (the Meadow package) is a port of the Rust crate textwrap
+(https://github.com/mgeisler/textwrap), version 0.16.2, together with the
+column-minima search from the Rust crate smawk
+(https://github.com/mgeisler/smawk), version 0.3.3, to Meadow. Its test cases
+are generated from textwrap, and its code is translated from both crates'
+source.
+
+textwrap is Copyright (c) 2016 Martin Geisler, and smawk is Copyright (c)
+2017 Martin Geisler. Both are distributed under the MIT License, and so is
+this port: see LICENSE, which is textwrap's.
+
+The alphanumeric table describes the Unicode Character Database, which is
+Copyright Unicode, Inc. and distributed under the Unicode License
+(https://www.unicode.org/license.txt).

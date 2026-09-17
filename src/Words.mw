@@ -1,0 +1,144 @@
+-- Finding the words in a line, and the places a word may be split: the crate's
+-- `src/word_separators.rs` and `src/word_splitters.rs`.
+--
+-- Copyright (c) 2016 Martin Geisler, and the Meadow port's authors. Licensed
+-- under the MIT license: see LICENSE and COPYRIGHT.
+
+use Std.Collections.Vector as V
+use unicodeLinebreak (linebreaks, BreakOpportunity)
+use textwrap.Str
+use textwrap.Core (Word, mkWord, wordFrom, skipAnsi, displayWidth)
+use textwrap.Options (WordSeparator, WordSplitter)
+
+-- Words end where a space is followed by something else.
+fun asciiWords line =
+  let n = byteLength line in
+  let rec go i start inSpace acc =
+    if i >= n
+    then (if start < n then V.pushBack acc (wordFrom (drop line start)) else acc)
+    else
+      let space = byteAt line i == 32 in
+      if inSpace and not space
+      then go (i + 1) i space (V.pushBack acc (wordFrom (slice line start i)))
+      else go (i + 1) start space acc
+  in
+  go 0 0 False V.empty
+
+-- `line` without its escape sequences, and for each character of `line`, where
+-- it starts in `line` and in the stripped text. A skipped sequence's first
+-- character is listed; the rest are not.
+fun stripAnsi line =
+  let cs = indexed line in
+  let rec go i stripped out map =
+    if i >= arrayLen cs
+    then (concatStrings (V.toArray out), map)
+    else
+      match arrayGet cs i with
+      | (at, c) ->
+          let map2 = V.pushBack map (at, stripped) in
+          let skip = skipAnsi cs i in
+          if skip >= 0
+          then go skip stripped out map2
+          else
+            let n = utf8Len c in
+            go (i + 1) (stripped + n) (V.pushBack out (slice line at (at + n))) map2
+  in
+  go 0 0 V.empty V.empty
+
+-- The character before byte `at` of `s`, as a code point, or `0 - 1`.
+fun codeBefore s at =
+  let cs = indexed (slice s 0 at) in
+  if arrayLen cs == 0 then 0 - 1 else charCode (snd (arrayGet cs (arrayLen cs - 1)))
+
+-- Words end at UAX #14 break opportunities, except after a hyphen or a soft
+-- hyphen, found in the text with its escape sequences taken out.
+fun unicodeWords line =
+  match stripAnsi line with
+  | (stripped, map) ->
+      let keep = \b ->
+        let before = codeBefore stripped (fst b) in
+        before != 0x2D and before != 0xAD
+      in
+      let found = V.filter keep (linebreaks stripped) in
+      let opportunities = if V.len found > 0 then V.take found (V.len found - 1) else found in
+      -- `pos` is how far through `map` the search has got; the crate's is one
+      -- iterator, used up as it goes.
+      let rec findFrom pos idx =
+        if pos >= V.len map
+        then (pos, 0 - 1)
+        else
+          match V.getOr (0, 0) map pos with
+          | (orig, s) -> if s == idx then (pos + 1, orig) else findFrom (pos + 1) idx
+      in
+      let rec go k pos start acc =
+        if k >= V.len opportunities
+        then (if start < byteLength line then V.pushBack acc (wordFrom (drop line start)) else acc)
+        else
+          match findFrom pos (fst (V.getOr (0, BreakOpportunity.Allowed) opportunities k)) with
+          | (pos2, orig) ->
+              if orig >= 0
+              then go (k + 1) pos2 orig (V.pushBack acc (wordFrom (slice line start orig)))
+              else go (k + 1) pos2 start acc
+      in
+      go 0 0 0 V.empty
+
+-- The words of `line`, by `separator`.
+@pub fun findWords separator line =
+  match separator with
+  | WordSeparator.AsciiSpace -> asciiWords line
+  | WordSeparator.UnicodeBreakProperties -> unicodeWords line
+  | WordSeparator.CustomSeparator f -> f line
+
+-- Where `splitter` would split `word`: byte offsets, each the end of a piece.
+@pub fun splitPoints splitter word =
+  match splitter with
+  | WordSplitter.NoHyphenation -> V.empty
+  | WordSplitter.HyphenSplitter -> hyphenPoints word
+  | WordSplitter.CustomSplitter f -> f word
+
+-- After each hyphen with a letter or digit on both sides.
+fun hyphenPoints word =
+  let cs = indexed word in
+  let n = arrayLen cs in
+  let rec go i acc =
+    if i >= n
+    then acc
+    else
+      match arrayGet cs i with
+      | (at, c) ->
+          let ok =
+            charCode c == 0x2D
+            and i > 0
+            and i + 1 < n
+            and isAlphanumeric (snd (arrayGet cs (i - 1)))
+            and isAlphanumeric (snd (arrayGet cs (i + 1)))
+          in
+          go (i + 1) (if ok then V.pushBack acc (at + 1) else acc)
+  in
+  go 0 V.empty
+
+-- One word as the pieces `splitter` splits it into. Every piece but the last
+-- has no whitespace, and a hyphen for its penalty unless it ends in one.
+fun splitOne splitter (w : Word) =
+  let text = w.word in
+  let points = splitPoints splitter text in
+  let rec go k prev acc =
+    if k >= V.len points
+    then
+      if prev < byteLength text or prev == 0
+      then
+        let rest = drop text prev in
+        let width = displayWidth rest in
+        V.pushBack acc (mkWord rest w.whitespace w.penalty width)
+      else acc
+    else
+      let idx = V.getOr 0 points k in
+      let piece = slice text prev idx in
+      let penalty = if endsWith "-" (slice text 0 idx) then "" else "-" in
+      let width = displayWidth piece in
+      go (k + 1) idx (V.pushBack acc (mkWord piece "" penalty width))
+  in
+  go 0 0 V.empty
+
+-- `words`, each split where `splitter` says.
+@pub fun splitWords splitter (words : [Word]) = V.concatMap (splitOne splitter) words
