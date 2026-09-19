@@ -5,14 +5,14 @@
 -- under the MIT license: see LICENSE and COPYRIGHT.
 
 use Std.Collections.Vector as V
-use textwrap.Str
-use textwrap.Core (Word, wordFrom, displayWidth, breakWords, fragment)
-use textwrap.Words (findWords, splitWords)
-use textwrap.Options
-use textwrap.Algorithms (wrapFirstFit, wrapOptimalFit)
-use textwrap.Options.WrapAlgorithm.*
-use textwrap.Options.LineEnding.*
-use textwrap.Options.WordSeparator.*
+use Textwrap.Str
+use Textwrap.Core (Word, wordFrom, displayWidth, breakWords, fragment)
+use Textwrap.Words (findWords, splitWords)
+use Textwrap.Options
+use Textwrap.Algorithms (wrapFirstFit, wrapOptimalFit)
+use Textwrap.Options.WrapAlgorithm.*
+use Textwrap.Options.LineEnding.*
+use Textwrap.Options.WordSeparator.*
 
 fun saturatingSub a b = if a > b then a - b else 0
 

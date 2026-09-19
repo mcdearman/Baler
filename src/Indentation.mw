@@ -4,7 +4,7 @@
 -- under the MIT license: see LICENSE and COPYRIGHT.
 
 use Std.Collections.Vector as V
-use textwrap.Str
+use Textwrap.Str
 
 -- `s` with `prefix` put before each line. A line that is only whitespace
 -- gets the prefix without its trailing whitespace, so that no line ends in

@@ -3,7 +3,7 @@
 -- Copyright (c) 2016 Martin Geisler, and the Meadow port's authors. Licensed
 -- under the MIT license: see LICENSE and COPYRIGHT.
 
-use textwrap.Core (Word)
+use Textwrap.Core (Word)
 
 -- Which line ending to split input at and join output with.
 @pub data LineEnding = LF | CRLF

@@ -6,7 +6,7 @@
 -- under the MIT license: see LICENSE and COPYRIGHT.
 
 use Std.Collections.Vector as V
-use textwrap.Tables (alphanumeric)
+use Textwrap.Tables (alphanumeric)
 
 fun digit s i = toInt (stringByteAt s i) - 48
 

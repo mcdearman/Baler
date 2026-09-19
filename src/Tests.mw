@@ -9,23 +9,23 @@ use Std.Test (assertEq)
 @cfg(test)
 use Std.Collections.Vector as V
 @cfg(test)
-use textwrap.Cases (cases)
+use Textwrap.Cases (cases)
 @cfg(test)
-use textwrap.Options
+use Textwrap.Options
 @cfg(test)
-use textwrap.Options.LineEnding.*
+use Textwrap.Options.LineEnding.*
 @cfg(test)
-use textwrap.Options.WordSeparator.*
+use Textwrap.Options.WordSeparator.*
 @cfg(test)
-use textwrap.Options.WordSplitter.*
+use Textwrap.Options.WordSplitter.*
 @cfg(test)
-use textwrap.Options.WrapAlgorithm.*
+use Textwrap.Options.WrapAlgorithm.*
 @cfg(test)
-use textwrap.Wrap
+use Textwrap.Wrap
 @cfg(test)
-use textwrap.Indentation
+use Textwrap.Indentation
 @cfg(test)
-use textwrap.Core (displayWidth)
+use Textwrap.Core (displayWidth)
 
 @cfg(test)
 fun digit i = toInt (stringByteAt cases i) - 48

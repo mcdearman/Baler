@@ -5,10 +5,10 @@
 -- under the MIT license: see LICENSE and COPYRIGHT.
 
 use Std.Collections.Vector as V
-use unicodeLinebreak (linebreaks, BreakOpportunity)
-use textwrap.Str
-use textwrap.Core (Word, mkWord, wordFrom, skipAnsi, displayWidth)
-use textwrap.Options (WordSeparator, WordSplitter)
+use UnicodeLinebreak (linebreaks, BreakOpportunity)
+use Textwrap.Str
+use Textwrap.Core (Word, mkWord, wordFrom, skipAnsi, displayWidth)
+use Textwrap.Options (WordSeparator, WordSplitter)
 
 -- Words end where a space is followed by something else.
 fun asciiWords line =

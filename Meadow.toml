@@ -1,0 +1,7 @@
+[package]
+name = "Textwrap"
+version = "0.2.0"
+
+[dependencies]
+UnicodeWidth = { git = "https://github.com/mcdearman/MeadowUnicodeWidth", version = "0.2.0" }
+UnicodeLinebreak = { git = "https://github.com/mcdearman/MeadowUnicodeLinebreak", version = "0.2.0" }

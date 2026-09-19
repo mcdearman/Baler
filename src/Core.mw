@@ -5,8 +5,8 @@
 -- under the MIT license: see LICENSE and COPYRIGHT.
 
 use Std.Collections.Vector as V
-use unicodeWidth (charWidth)
-use textwrap.Str (indexed, byteLength, slice, trimEndSpaces)
+use UnicodeWidth (charWidth)
+use Textwrap.Str (indexed, byteLength, slice, trimEndSpaces)
 
 -- Where the characters of a terminal escape sequence end, if the character
 -- at `i` of `cs` (from `indexed`) starts one; `0 - 1` if it does not.
