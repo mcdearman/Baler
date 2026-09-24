@@ -5,14 +5,14 @@ version = 1
 
 [[package]]
 name = "UnicodeLinebreak"
-source = "git+https://github.com/mcdearman/MeadowUnicodeLinebreak?version=0.2.0"
+source = "git+https://github.com/mcdearman/UnicodeLinebreak?version=0.2.0"
 version = "0.2.0"
 rev = "afeb62c46ae6c13884506bf303230d987b21b6b3"
 tree = "21d0347617c807c5822e901542bb07c1081f98e5"
 
 [[package]]
 name = "UnicodeWidth"
-source = "git+https://github.com/mcdearman/MeadowUnicodeWidth?version=0.2.0"
+source = "git+https://github.com/mcdearman/UnicodeWidth?version=0.2.0"
 version = "0.2.0"
 rev = "a4580b8010ecfba736c0f7d105a308db6972e60e"
 tree = "018d5c43b7b4c92e41fdcb4b91907ae7654bd335"

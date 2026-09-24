@@ -1,4 +1,4 @@
-# textwrap
+# baler
 
 Wrap, fill, indent and dedent text for a terminal, in
 [Meadow](https://github.com/mcdearman/meadow).
@@ -6,10 +6,10 @@ Wrap, fill, indent and dedent text for a terminal, in
 This package is a port of Rust's [`textwrap`](https://github.com/mgeisler/textwrap)
 0.16.2 with its default features:
 
-- widths come from [unicodeWidth](https://github.com/mcdearman/MeadowUnicodeWidth),
+- widths come from [unicodeWidth](https://github.com/mcdearman/UnicodeWidth),
   so wide CJK characters and emoji are measured correctly and colour codes are
   ignored;
-- words end where [unicodeLinebreak](https://github.com/mcdearman/MeadowUnicodeLinebreak)
+- words end where [unicodeLinebreak](https://github.com/mcdearman/UnicodeLinebreak)
   (UAX #14) says a line may break;
 - the default algorithm is *optimal fit*, which balances line lengths across a
   whole paragraph, like TeX does, instead of filling each line greedily.
@@ -17,13 +17,13 @@ This package is a port of Rust's [`textwrap`](https://github.com/mgeisler/textwr
 ## Install
 
 ```sh
-meadow add mcdearman/MeadowTextwrap
+meadow add mcdearman/Baler
 ```
 
 ## Use
 
 ```meadow
-use Textwrap (wrap, fill, indent, dedent, options, FirstFit)
+use Baler (wrap, fill, indent, dedent, options, FirstFit)
 
 def text = "Memory safety without garbage collection."
 

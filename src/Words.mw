@@ -6,9 +6,9 @@
 
 use Std.Collections.Vector as V
 use UnicodeLinebreak (linebreaks, BreakOpportunity)
-use Textwrap.Str
-use Textwrap.Core (Word, mkWord, wordFrom, skipAnsi, displayWidth)
-use Textwrap.Options (WordSeparator, WordSplitter)
+use Baler.Str
+use Baler.Core (Word, mkWord, wordFrom, skipAnsi, displayWidth)
+use Baler.Options (WordSeparator, WordSplitter)
 
 -- Words end where a space is followed by something else.
 fun asciiWords line =

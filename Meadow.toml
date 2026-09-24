@@ -1,7 +1,7 @@
 [package]
-name = "Textwrap"
+name = "Baler"
 version = "0.2.0"
 
 [dependencies]
-UnicodeWidth = { git = "https://github.com/mcdearman/MeadowUnicodeWidth", version = "0.2.0" }
-UnicodeLinebreak = { git = "https://github.com/mcdearman/MeadowUnicodeLinebreak", version = "0.2.0" }
+UnicodeWidth = { git = "https://github.com/mcdearman/UnicodeWidth", version = "0.2.0" }
+UnicodeLinebreak = { git = "https://github.com/mcdearman/UnicodeLinebreak", version = "0.2.0" }

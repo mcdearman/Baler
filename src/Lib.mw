@@ -5,7 +5,7 @@
 -- `unicodeLinebreak`, and optimal-fit wrapping. The tests hold it to the
 -- crate's answers for thousands of texts and options.
 --
---   use Textwrap (wrap, fill, options)
+--   use Baler (wrap, fill, options)
 --
 --   wrap (options 18) "Memory safety without garbage collection."
 --     -- ["Memory safety", "without garbage", "collection."]
@@ -23,7 +23,7 @@ mod Cases
 @cfg(test)
 mod Tests
 
-@pub use Textwrap.Options (
+@pub use Baler.Options (
   Options,
   options,
   LineEnding,
@@ -34,12 +34,12 @@ mod Tests
   Penalties,
   defaultPenalties
 )
-@pub use Textwrap.Options.LineEnding.*
-@pub use Textwrap.Options.WordSeparator.*
-@pub use Textwrap.Options.WordSplitter.*
-@pub use Textwrap.Options.WrapAlgorithm.*
-@pub use Textwrap.Wrap (wrap, fill, fillInplace, unfill, refill, wrapColumns)
-@pub use Textwrap.Indentation (indent, dedent)
-@pub use Textwrap.Core (displayWidth, Word, wordFrom, breakApart, breakWords, Fragment, fragment)
-@pub use Textwrap.Words (findWords, splitPoints, splitWords)
-@pub use Textwrap.Algorithms (wrapFirstFit, wrapOptimalFit)
+@pub use Baler.Options.LineEnding.*
+@pub use Baler.Options.WordSeparator.*
+@pub use Baler.Options.WordSplitter.*
+@pub use Baler.Options.WrapAlgorithm.*
+@pub use Baler.Wrap (wrap, fill, fillInplace, unfill, refill, wrapColumns)
+@pub use Baler.Indentation (indent, dedent)
+@pub use Baler.Core (displayWidth, Word, wordFrom, breakApart, breakWords, Fragment, fragment)
+@pub use Baler.Words (findWords, splitPoints, splitWords)
+@pub use Baler.Algorithms (wrapFirstFit, wrapOptimalFit)

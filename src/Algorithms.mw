@@ -10,8 +10,8 @@
 -- under the MIT license: see LICENSE and COPYRIGHT.
 
 use Std.Collections.Vector as V
-use Textwrap.Core (Fragment)
-use Textwrap.Options (Penalties)
+use Baler.Core (Fragment)
+use Baler.Options (Penalties)
 
 fun lineWidthFor (lineWidths : [Float]) line =
   let fallback = V.getOr 0.0 lineWidths (V.len lineWidths - 1) in
