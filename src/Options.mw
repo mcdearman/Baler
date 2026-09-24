@@ -6,6 +6,7 @@
 use Baler.Core (Word)
 
 -- Which line ending to split input at and join output with.
+@derive(PartialEq)
 @pub data LineEnding = LF | CRLF
 
 @pub fun lineEndingText e =
